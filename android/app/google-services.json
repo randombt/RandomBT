@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "240252773670",
+    "project_id": "randombt-af2d7",
+    "storage_bucket": "randombt-af2d7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:240252773670:android:dac28da7d483ccab2bcde7",
+        "android_client_info": {
+          "package_name": "com.randombt.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_WlPSpCGWMBA6co8skJErkEI3aB69rz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

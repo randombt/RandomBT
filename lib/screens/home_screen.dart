@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+
 import 'feed_screen.dart';
-import 'create_post_screen.dart';
 import 'profile_screen.dart';
+import 'create_post_screen.dart';
 import 'search_screen.dart';
+import 'notifications_screen.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -15,27 +18,21 @@ class _HomeScreenState extends State<HomeScreen> {
   int currentIndex = 0;
 
   List<Widget> get pages => [
-    const FeedScreen(),
+  const FeedScreen(),
+  const SearchScreen(),
 
-    const SearchScreen(),
+  CreatePostScreen(
+    onPostUploaded: () {
+      setState(() {
+        currentIndex = 0;
+      });
+    },
+  ),
 
-    CreatePostScreen(
-      onPostUploaded: () {
-        setState(() {
-          currentIndex = 0;
-        });
-      },
-    ),
-
-    const Center(
-      child: Text(
-        "🎬 Reels",
-        style: TextStyle(fontSize: 28, color: Colors.white),
-      ),
-    ),
+  NotificationsScreen(),
 
   const ProfileScreen(),
-  ];
+];
 
   @override
   Widget build(BuildContext context) {
@@ -76,8 +73,10 @@ class _HomeScreenState extends State<HomeScreen> {
               label: "Upload"),
 
           BottomNavigationBarItem(
-              icon: Icon(Icons.play_circle),
-              label: "Reels"),
+  icon: Icon(Icons.notifications_outlined),
+  activeIcon: Icon(Icons.notifications),
+  label: "Alerts",
+),
 
           BottomNavigationBarItem(
               icon: Icon(Icons.person),

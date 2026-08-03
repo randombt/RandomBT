@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'post_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/firestore_service.dart';
+
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -9,7 +11,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController searchController = TextEditingController();
-
+  final FirestoreService firestoreService = FirestoreService();
   final List<String> users = [
     "Rahul",
     "Aman",
@@ -27,10 +29,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredUsers = users.where((user) {
-      return user.toLowerCase().contains(searchText.toLowerCase());
-    }).toList();
-
     return Scaffold(
       backgroundColor: const Color(0xff0F1115),
 
@@ -41,7 +39,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
       body: Column(
         children: [
-
           Padding(
             padding: const EdgeInsets.all(15),
             child: TextField(
@@ -66,36 +63,33 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-    Expanded(
-    child: GridView.builder(
-    padding: const EdgeInsets.all(4),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-    crossAxisCount: 3,
-    crossAxisSpacing: 2,
-    mainAxisSpacing: 2,
-    ),
-    itemCount: allPosts.length,
-    itemBuilder: (context, index) {
-    final post = allPosts[index];
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: firestoreService.getPosts(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-    if (post.image == null) {
-    return Container(
-    color: Colors.grey.shade800,
-    child: const Icon(
-    Icons.image,
-    color: Colors.white,
-    ),
-    );
-    }
+                final posts = snapshot.data!.docs;
 
-    return Image.file(
-    post.image!,
-    fit: BoxFit.cover,
-    );
-    },
-    ),
-    ),
+                return GridView.builder(
+                  padding: const EdgeInsets.all(4),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 2,
+                    mainAxisSpacing: 2,
+                  ),
+                  itemCount: posts.length,
+                  itemBuilder: (context, index) {
+                    final post = posts[index].data() as Map<String, dynamic>;
 
+                    return Image.network(post["imageUrl"], fit: BoxFit.cover);
+                  },
+                );
+              },
+            ),
+          ),
         ],
       ),
     );

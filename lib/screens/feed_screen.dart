@@ -1,0 +1,534 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:share_plus/share_plus.dart';
+import '../services/firestore_service.dart';
+import 'user_profile_screen.dart';
+
+class FeedScreen extends StatefulWidget {
+  const FeedScreen({super.key});
+
+  @override
+  State<FeedScreen> createState() => _FeedScreenState();
+}
+
+final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+class _FeedScreenState extends State<FeedScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController heartController;
+  String? animatedPostId;
+  // RandomBT Patch #1
+  final ScrollController _scrollController = ScrollController();
+  bool isLiking = false;
+  bool isSaving = false;
+  bool isCommenting = false;
+
+  late Animation<double> heartAnimation;
+
+  final FirestoreService firestoreService = FirestoreService();
+  final TextEditingController commentController = TextEditingController();
+  final FirebaseAuth auth = FirebaseAuth.instance;
+
+  Future<void> toggleLike(String postId) async {
+    if (isLiking) return;
+
+    isLiking = true;
+
+    try {
+      final user = auth.currentUser;
+      if (user == null) return;
+      final userData = (await firestoreService.getUserOnce(user.uid)).data();
+      if (userData == null) return;
+      await firestoreService.toggleLike(
+        postId: postId,
+        uid: user.uid,
+        username: userData['username']?.toString() ?? '',
+        profileUrl: userData['profileUrl']?.toString() ?? '',
+      );
+    } finally {
+      isLiking = false;
+    }
+  }
+
+  Future<void> toggleSave(String postId) async {
+    if (isSaving) return;
+    final user = auth.currentUser;
+    if (user == null) return;
+    isSaving = true;
+    try {
+      await firestoreService.toggleSavedPost(uid: user.uid, postId: postId);
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  Future<void> addCommentToFirestore(String postId) async {
+    if (isCommenting) return;
+    final comment = commentController.text.trim();
+    final user = auth.currentUser;
+    if (comment.isEmpty || user == null) return;
+    isCommenting = true;
+
+    try {
+      final userSnapshot = await firestoreService.getUserOnce(user.uid);
+      final userData = userSnapshot.data();
+      if (userData == null) return;
+
+      final username = userData["username"]?.toString() ?? '';
+      final profileUrl = userData["profileUrl"]?.toString() ?? '';
+      final commentId = await firestoreService.addComment(
+        postId: postId,
+        username: username,
+        profileUrl: profileUrl,
+        comment: comment,
+      );
+
+      final postDoc = await firestore.collection("posts").doc(postId).get();
+      final post = postDoc.data();
+      if (post != null && post["uid"] != user.uid) {
+        await firestoreService.createNotification(
+          toUid: post["uid"].toString(),
+          fromUid: user.uid,
+          username: username,
+          profileUrl: profileUrl,
+          type: "comment",
+          postId: postId,
+          comment: comment,
+          actionId: 'comment_${postId}_$commentId',
+        );
+      }
+
+      commentController.clear();
+    } finally {
+      isCommenting = false;
+    }
+  }
+
+  void showComments(String postId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xff1B1E24),
+      isScrollControlled: true,
+      builder: (context) {
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            children: [
+              const SizedBox(height: 15),
+
+              const Text(
+                "Comments",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const Divider(),
+
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: firestoreService.getComments(postId),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final comments = snapshot.data!.docs;
+
+                    if (comments.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          "No comments yet",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: comments.length,
+                      itemBuilder: (context, index) {
+                        final data =
+                            comments[index].data() as Map<String, dynamic>;
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage:
+                                (data["profileUrl"] ?? "").toString().isNotEmpty
+                                ? NetworkImage(data["profileUrl"].toString())
+                                : null,
+                            child: (data["profileUrl"] ?? "").toString().isEmpty
+                                ? const Icon(Icons.person)
+                                : null,
+                          ),
+                          title: Text(
+                            data["username"] ?? "",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            data["comment"] ?? "",
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: commentController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: "Write a comment...",
+                          hintStyle: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ),
+
+                    IconButton(
+                      onPressed: () {
+                        addCommentToFirestore(postId);
+                      },
+                      icon: const Icon(Icons.send, color: Colors.blue),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    heartController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    heartAnimation = Tween<double>(begin: 0.5, end: 1.2).animate(
+      CurvedAnimation(parent: heartController, curve: Curves.elasticOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    heartController.dispose();
+    _scrollController.dispose();
+    commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xff0F1115),
+
+      appBar: AppBar(
+        backgroundColor: const Color(0xff0F1115),
+        elevation: 0,
+        title: const Text(
+          "RandomBT",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 15),
+            child: Icon(Icons.chat_bubble_outline, color: Colors.white),
+          ),
+        ],
+      ),
+
+      body: Column(
+        children: [
+          SizedBox(
+            height: 100,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 10,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Colors.deepPurple,
+                        child: Text(
+                          "${index + 1}",
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        index == 0 ? "Your Story" : "User $index",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const Divider(color: Colors.white24),
+
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: firestoreService.getPosts(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      "No Posts Yet",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  );
+                }
+
+                final posts = snapshot.data!.docs;
+
+                return ListView.builder(
+                  key: const PageStorageKey("feed_list"),
+                  controller: _scrollController,
+                  itemCount: posts.length,
+                  itemBuilder: (context, index) {
+                    final doc = posts[index];
+                    final post = doc.data() as Map<String, dynamic>;
+                    final postId = doc.id;
+
+                    return Card(
+                      color: const Color(0xff1B1E24),
+                      margin: const EdgeInsets.all(10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            UserProfileScreen(uid: post["uid"]),
+                                      ),
+                                    );
+                                  },
+                                  child: CircleAvatar(
+                                    backgroundImage:
+                                        (post["profileUrl"] ?? "").isNotEmpty
+                                        ? NetworkImage(post["profileUrl"])
+                                        : null,
+                                    child: (post["profileUrl"] ?? "").isEmpty
+                                        ? const Icon(Icons.person)
+                                        : null,
+                                  ),
+                                ),
+
+                                const SizedBox(width: 10),
+
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            UserProfileScreen(uid: post["uid"]),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    post["username"] ?? "",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            GestureDetector(
+                              onDoubleTap: () async {
+                                heartController.forward(from: 0);
+                                setState(() {
+                                  animatedPostId = postId;
+                                });
+
+                                await toggleLike(postId);
+
+                                await Future.delayed(
+                                  const Duration(milliseconds: 700),
+                                );
+
+                                if (!mounted) return;
+
+                                setState(() {
+                                  animatedPostId = null;
+                                });
+                              },
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      post["imageUrl"],
+                                      height: 220,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+
+                                  if (animatedPostId == postId)
+                                    ScaleTransition(
+                                      scale: heartAnimation,
+                                      child: const Icon(
+                                        Icons.favorite,
+                                        color: Colors.red,
+                                        size: 100,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            StreamBuilder<DocumentSnapshot>(
+                              stream: firestore
+                                  .collection("users")
+                                  .doc(auth.currentUser!.uid)
+                                  .collection("savedPosts")
+                                  .doc(postId)
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                final saved = snapshot.data?.exists ?? false;
+
+                                return IconButton(
+                                  onPressed: () {
+                                    toggleSave(postId);
+                                  },
+                                  icon: Icon(
+                                    saved
+                                        ? Icons.bookmark
+                                        : Icons.bookmark_border,
+                                    color: Colors.white,
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+
+                            Row(
+                              children: [
+                                StreamBuilder<DocumentSnapshot>(
+                                  stream: firestore
+                                      .collection("posts")
+                                      .doc(postId)
+                                      .collection("likes")
+                                      .doc(auth.currentUser!.uid)
+                                      .snapshots(),
+                                  builder: (context, snapshot) {
+                                    final liked =
+                                        snapshot.data?.exists ?? false;
+
+                                    return IconButton(
+                                      onPressed: () {
+                                        toggleLike(postId);
+                                      },
+                                      icon: Icon(
+                                        liked
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        color: liked
+                                            ? Colors.red
+                                            : Colors.white,
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                                Text(
+                                  "${post["likes"]} Likes",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                const Spacer(),
+
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.comment_outlined,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    showComments(postId);
+                                  },
+                                ),
+
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.send_outlined,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    SharePlus.instance.share(
+                                      ShareParams(
+                                        text:
+                                            "${post["caption"]}\n\n${post["imageUrl"]}",
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 5),
+
+                            Text(
+                              post["caption"] ?? "",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

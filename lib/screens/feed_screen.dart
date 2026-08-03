@@ -421,31 +421,6 @@ class _FeedScreenState extends State<FeedScreen>
                                 ],
                               ),
                             ),
-                            StreamBuilder<DocumentSnapshot>(
-                              stream: firestore
-                                  .collection("users")
-                                  .doc(auth.currentUser!.uid)
-                                  .collection("savedPosts")
-                                  .doc(postId)
-                                  .snapshots(),
-                              builder: (context, snapshot) {
-                                final saved = snapshot.data?.exists ?? false;
-
-                                return IconButton(
-                                  onPressed: () {
-                                    toggleSave(postId);
-                                  },
-                                  icon: Icon(
-                                    saved
-                                        ? Icons.bookmark
-                                        : Icons.bookmark_border,
-                                    color: Colors.white,
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 12),
-
                             Row(
                               children: [
                                 StreamBuilder<DocumentSnapshot>(
@@ -505,6 +480,31 @@ class _FeedScreenState extends State<FeedScreen>
                                       ShareParams(
                                         text:
                                             "${post["caption"]}\n\n${post["imageUrl"]}",
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                                StreamBuilder<DocumentSnapshot>(
+                                  stream: firestore
+                                      .collection("users")
+                                      .doc(auth.currentUser!.uid)
+                                      .collection("savedPosts")
+                                      .doc(postId)
+                                      .snapshots(),
+                                  builder: (context, snapshot) {
+                                    final saved =
+                                        snapshot.data?.exists ?? false;
+
+                                    return IconButton(
+                                      onPressed: () {
+                                        toggleSave(postId);
+                                      },
+                                      icon: Icon(
+                                        saved
+                                            ? Icons.bookmark
+                                            : Icons.bookmark_border,
+                                        color: Colors.white,
                                       ),
                                     );
                                   },

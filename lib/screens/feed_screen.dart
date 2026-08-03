@@ -638,16 +638,13 @@ class _FeedScreenState extends State<FeedScreen>
                                     },
                                   ),
 
-                                  StreamBuilder<DocumentSnapshot>(
-                                    stream: firestore
-                                        .collection("users")
-                                        .doc(auth.currentUser!.uid)
-                                        .collection("savedPosts")
-                                        .doc(postId)
-                                        .snapshots(),
-                                    builder: (context, snapshot) {
-                                      final saved =
-                                          snapshot.data?.exists ?? false;
+                                  ValueListenableBuilder<SavedPostsState>(
+                                    valueListenable: firestoreService
+                                        .watchSavedPosts(auth.currentUser!.uid),
+                                    builder: (context, savedPosts, child) {
+                                      final saved = savedPosts.postIds.contains(
+                                        postId,
+                                      );
 
                                       return IconButton(
                                         onPressed: () {

@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
 import '../services/firestore_service.dart';
 
 class SavedPostsScreen extends StatefulWidget {
@@ -11,12 +12,28 @@ class SavedPostsScreen extends StatefulWidget {
 }
 
 class _SavedPostsScreenState extends State<SavedPostsScreen> {
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
   final FirestoreService firestoreService = FirestoreService();
+  final Set<String> _removingMissingPostIds = {};
+
+  Future<List<DocumentSnapshot<Map<String, dynamic>>>>? _savedPostsFuture;
+  String _savedPostsKey = '';
+
+  Future<List<DocumentSnapshot<Map<String, dynamic>>>> _loadSavedPosts(
+    List<String> postIds,
+  ) {
+    final key = postIds.join(',');
+    if (_savedPostsFuture == null || _savedPostsKey != key) {
+      _savedPostsKey = key;
+      _savedPostsFuture = firestoreService.getSavedPostDocuments(postIds);
+    }
+    return _savedPostsFuture!;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user = auth.currentUser;
+
     return Scaffold(
       backgroundColor: const Color(0xff0F1115),
       appBar: AppBar(
@@ -24,92 +41,128 @@ class _SavedPostsScreenState extends State<SavedPostsScreen> {
         elevation: 0,
         title: const Text("Saved Posts"),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: auth.currentUser == null
-            ? null
-            : firestore
-                  .collection("users")
-                  .doc(auth.currentUser!.uid)
-                  .collection("savedPosts")
-                  .orderBy("savedAt", descending: true)
-                  .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final savedPosts = snapshot.data!.docs;
-
-          if (savedPosts.isEmpty) {
-            return const Center(
+      body: user == null
+          ? const Center(
               child: Text(
                 "No Saved Posts",
                 style: TextStyle(color: Colors.white, fontSize: 18),
               ),
-            );
-          }
-          return GridView.builder(
-            padding: const EdgeInsets.all(4),
-            itemCount: savedPosts.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 2,
-              mainAxisSpacing: 2,
-            ),
-            itemBuilder: (context, index) {
-              final postId = savedPosts[index].id;
+            )
+          : ValueListenableBuilder<SavedPostsState>(
+              valueListenable: firestoreService.watchSavedPosts(user.uid),
+              builder: (context, savedPosts, child) {
+                if (savedPosts.isLoading && savedPosts.postIds.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              return FutureBuilder<DocumentSnapshot>(
-                future: firestore.collection("posts").doc(postId).get(),
-                builder: (context, postSnapshot) {
-                  if (postSnapshot.hasData && !postSnapshot.data!.exists) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      final user = auth.currentUser;
-                      if (user != null) {
-                        firestoreService.removeSavedPost(
-                          uid: user.uid,
-                          postId: postId,
-                        );
-                      }
-                    });
-                    return const SizedBox.shrink();
-                  }
-
-                  if (!postSnapshot.hasData) {
-                    return const SizedBox.shrink();
-                  }
-
-                  final post =
-                      postSnapshot.data!.data() as Map<String, dynamic>;
-
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => Scaffold(
-                            backgroundColor: Colors.black,
-                            appBar: AppBar(backgroundColor: Colors.black),
-                            body: Center(
-                              child: InteractiveViewer(
-                                child: Image.network(post["imageUrl"]),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                    child: Hero(
-                      tag: postId,
-                      child: Image.network(post["imageUrl"], fit: BoxFit.cover),
+                if (savedPosts.hasError && savedPosts.postIds.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Unable to load saved posts',
+                      style: TextStyle(color: Colors.white, fontSize: 18),
                     ),
                   );
-                },
-              );
-            },
-          );
-        },
-      ),
+                }
+
+                if (savedPosts.postIds.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      "No Saved Posts",
+                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                  );
+                }
+
+                return FutureBuilder<
+                  List<DocumentSnapshot<Map<String, dynamic>>>
+                >(
+                  future: _loadSavedPosts(savedPosts.postIds),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return const Center(
+                        child: Text(
+                          'Unable to load saved posts',
+                          style: TextStyle(color: Colors.white, fontSize: 18),
+                        ),
+                      );
+                    }
+
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final posts = snapshot.data!;
+                    final loadedPostIds = posts.map((post) => post.id).toSet();
+                    final missingPostIds = savedPosts.postIds
+                        .where((id) => !loadedPostIds.contains(id))
+                        .where(_removingMissingPostIds.add)
+                        .toList();
+
+                    if (missingPostIds.isNotEmpty) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        for (final postId in missingPostIds) {
+                          firestoreService
+                              .removeSavedPost(uid: user.uid, postId: postId)
+                              .whenComplete(
+                                () => _removingMissingPostIds.remove(postId),
+                              );
+                        }
+                      });
+                    }
+
+                    if (posts.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          "No Saved Posts",
+                          style: TextStyle(color: Colors.white, fontSize: 18),
+                        ),
+                      );
+                    }
+
+                    return GridView.builder(
+                      padding: const EdgeInsets.all(4),
+                      itemCount: posts.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 2,
+                            mainAxisSpacing: 2,
+                          ),
+                      itemBuilder: (context, index) {
+                        final post = posts[index].data()!;
+                        final postId = posts[index].id;
+
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Scaffold(
+                                  backgroundColor: Colors.black,
+                                  appBar: AppBar(backgroundColor: Colors.black),
+                                  body: Center(
+                                    child: InteractiveViewer(
+                                      child: Image.network(post["imageUrl"]),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          child: Hero(
+                            tag: postId,
+                            child: Image.network(
+                              post["imageUrl"],
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
     );
   }
 }

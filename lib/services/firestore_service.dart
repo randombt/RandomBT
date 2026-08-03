@@ -1,6 +1,32 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+
+class SavedPostsState {
+  const SavedPostsState({
+    this.postIds = const [],
+    this.isLoading = true,
+    this.hasError = false,
+  });
+
+  final List<String> postIds;
+  final bool isLoading;
+  final bool hasError;
+}
 
 class FirestoreService {
+  static final Map<String, ValueNotifier<SavedPostsState>> _savedPostsStates =
+      {};
+  static final Map<
+    String,
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+  >
+  _savedPostsSubscriptions = {};
+  static final Map<String, DocumentSnapshot<Map<String, dynamic>>>
+  _savedPostDocumentCache = {};
+  static final Set<String> _missingSavedPostIds = {};
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   DocumentReference<Map<String, dynamic>> userReference(String uid) {
     return _firestore.collection('users').doc(uid);
@@ -211,11 +237,83 @@ class FirestoreService {
     });
   }
 
+  /// Shares one saved-post listener per user for the current app session.
+  /// Firestore's local cache supplies the latest available state offline, then
+  /// synchronizes it when the device reconnects.
+  ValueListenable<SavedPostsState> watchSavedPosts(String uid) {
+    final state = _savedPostsStates.putIfAbsent(
+      uid,
+      () => ValueNotifier(const SavedPostsState()),
+    );
+
+    _savedPostsSubscriptions.putIfAbsent(uid, () {
+      return userReference(uid)
+          .collection('savedPosts')
+          .orderBy('savedAt', descending: true)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              state.value = SavedPostsState(
+                postIds: snapshot.docs.map((post) => post.id).toList(),
+                isLoading: false,
+              );
+            },
+            onError: (_) {
+              state.value = SavedPostsState(
+                postIds: state.value.postIds,
+                isLoading: false,
+                hasError: true,
+              );
+            },
+          );
+    });
+
+    return state;
+  }
+
+  /// Loads only saved posts that are not already cached for this session.
+  Future<List<DocumentSnapshot<Map<String, dynamic>>>> getSavedPostDocuments(
+    Iterable<String> postIds,
+  ) async {
+    final ids = postIds.toList(growable: false);
+    final missingIds = ids
+        .where(
+          (id) =>
+              !_savedPostDocumentCache.containsKey(id) &&
+              !_missingSavedPostIds.contains(id),
+        )
+        .toList();
+
+    for (var start = 0; start < missingIds.length; start += 10) {
+      final end = start + 10 > missingIds.length
+          ? missingIds.length
+          : start + 10;
+      final pageIds = missingIds.sublist(start, end);
+      final posts = await _firestore
+          .collection('posts')
+          .where(FieldPath.documentId, whereIn: pageIds)
+          .get();
+      final foundIds = <String>{};
+      for (final post in posts.docs) {
+        _savedPostDocumentCache[post.id] = post;
+        foundIds.add(post.id);
+      }
+      _missingSavedPostIds.addAll(
+        pageIds.where((id) => !foundIds.contains(id)),
+      );
+    }
+
+    return [for (final id in ids) ?_savedPostDocumentCache[id]];
+  }
+
   /// Toggles a saved post. A post ID is the document ID, so duplicates are
   /// structurally impossible.
-  Future<bool> toggleSavedPost({required String uid, required String postId}) {
+  Future<bool> toggleSavedPost({
+    required String uid,
+    required String postId,
+  }) async {
     final saveRef = userReference(uid).collection('savedPosts').doc(postId);
-    return _firestore.runTransaction((transaction) async {
+    final isSaved = await _firestore.runTransaction((transaction) async {
       final savedPost = await transaction.get(saveRef);
       if (savedPost.exists) {
         transaction.delete(saveRef);
@@ -224,10 +322,29 @@ class FirestoreService {
       transaction.set(saveRef, {'savedAt': FieldValue.serverTimestamp()});
       return true;
     });
+    _updateSavedPostsState(uid: uid, postId: postId, isSaved: isSaved);
+    return isSaved;
   }
 
-  Future<void> removeSavedPost({required String uid, required String postId}) {
-    return userReference(uid).collection('savedPosts').doc(postId).delete();
+  Future<void> removeSavedPost({
+    required String uid,
+    required String postId,
+  }) async {
+    await userReference(uid).collection('savedPosts').doc(postId).delete();
+    _updateSavedPostsState(uid: uid, postId: postId, isSaved: false);
+  }
+
+  void _updateSavedPostsState({
+    required String uid,
+    required String postId,
+    required bool isSaved,
+  }) {
+    final state = _savedPostsStates[uid];
+    if (state == null) return;
+
+    final postIds = List<String>.of(state.value.postIds)..remove(postId);
+    if (isSaved) postIds.insert(0, postId);
+    state.value = SavedPostsState(postIds: postIds, isLoading: false);
   }
 
   /// Add Comment

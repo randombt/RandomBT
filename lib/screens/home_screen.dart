@@ -14,25 +14,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-
   int currentIndex = 0;
 
   List<Widget> get pages => [
-  const FeedScreen(),
-  const SearchScreen(),
+    const FeedScreen(),
+    const SearchScreen(),
 
-  CreatePostScreen(
-    onPostUploaded: () {
-      setState(() {
-        currentIndex = 0;
-      });
-    },
-  ),
+    CreatePostScreen(
+      onPostUploaded: () {
+        setState(() {
+          currentIndex = 0;
+        });
+      },
+    ),
 
-  NotificationsScreen(),
+    NotificationsScreen(),
 
-  const ProfileScreen(),
-];
+    const ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
       body: pages[currentIndex],
 
       bottomNavigationBar: BottomNavigationBar(
-
         currentIndex: currentIndex,
 
         backgroundColor: Colors.black,
@@ -52,40 +50,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
         type: BottomNavigationBarType.fixed,
 
-        onTap: (index){
+        onTap: (index) {
           setState(() {
-            currentIndex=index;
+            currentIndex = index;
           });
         },
 
         items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
+
+          BottomNavigationBarItem(icon: Icon(Icons.add_box), label: "Upload"),
 
           BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: "Home"),
+            icon: Icon(Icons.notifications_outlined),
+            activeIcon: Icon(Icons.notifications),
+            label: "Alerts",
+          ),
 
-          BottomNavigationBarItem(
-              icon: Icon(Icons.search),
-              label: "Search"),
-
-          BottomNavigationBarItem(
-              icon: Icon(Icons.add_box),
-              label: "Upload"),
-
-          BottomNavigationBarItem(
-  icon: Icon(Icons.notifications_outlined),
-  activeIcon: Icon(Icons.notifications),
-  label: "Alerts",
-),
-
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: "Profile"),
-
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
-
       ),
-
     );
   }
 }

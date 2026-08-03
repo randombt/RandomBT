@@ -28,7 +28,7 @@ class NotificationsScreen extends StatelessWidget {
                 style: TextStyle(color: Colors.white, fontSize: 18),
               ),
             )
-          : StreamBuilder<QuerySnapshot>(
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: firestoreService.getNotifications(user.uid),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -57,8 +57,9 @@ class NotificationsScreen extends StatelessWidget {
                 return ListView.builder(
                   itemCount: notifications.length,
                   itemBuilder: (context, index) {
-                    final data =
-                        notifications[index].data() as Map<String, dynamic>;
+                    final notification = notifications[index];
+                    final data = notification.data();
+                    final isRead = data['seen'] == true;
 
                     var text = "";
                     if (data["type"] == "like") {
@@ -80,15 +81,35 @@ class NotificationsScreen extends StatelessWidget {
                       ),
                       title: Text(
                         data["username"] ?? "",
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: isRead
+                              ? FontWeight.normal
+                              : FontWeight.bold,
                         ),
                       ),
                       subtitle: Text(
                         text,
                         style: const TextStyle(color: Colors.white70),
                       ),
+                      onTap: () async {
+                        if (isRead) return;
+
+                        try {
+                          await firestoreService.markNotificationAsRead(
+                            notification.id,
+                          );
+                        } on FirebaseException {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Unable to mark notification as read',
+                              ),
+                            ),
+                          );
+                        }
+                      },
                     );
                   },
                 );

@@ -16,31 +16,30 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-bool obscurePassword = true;
+  bool obscurePassword = true;
   Future<void> login() async {
-  try {
-    await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: emailController.text.trim(),
-      password: passwordController.text.trim(),
-    );
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool("isLoggedIn", true);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool("isLoggedIn", true);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const HomeScreen(),
-      ),
-    );
-  } on FirebaseAuthException catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.message ?? "Login Failed")),
-    );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message ?? "Login Failed")));
+    }
   }
-}
+
   Future<void> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -48,7 +47,7 @@ bool obscurePassword = true;
       if (googleUser == null) return;
 
       final GoogleSignInAuthentication googleAuth =
-      await googleUser.authentication;
+          await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -61,14 +60,12 @@ bool obscurePassword = true;
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -103,15 +100,13 @@ bool obscurePassword = true;
 
                 const Text(
                   "Connect With Everyone",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
                 ),
 
                 const SizedBox(height: 40),
 
-                TextField(controller: emailController,
+                TextField(
+                  controller: emailController,
 
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
@@ -138,18 +133,18 @@ bool obscurePassword = true;
                     hintStyle: const TextStyle(color: Colors.grey),
                     prefixIcon: const Icon(Icons.lock, color: Colors.grey),
                     suffixIcon: IconButton(
-  icon: Icon(
-    obscurePassword
-        ? Icons.visibility_off
-        : Icons.visibility,
-    color: Colors.grey,
-  ),
-  onPressed: () {
-    setState(() {
-      obscurePassword = !obscurePassword;
-    });
-  },
-),
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          obscurePassword = !obscurePassword;
+                        });
+                      },
+                    ),
                     filled: true,
                     fillColor: const Color(0xff1B1E24),
                     border: OutlineInputBorder(
@@ -172,9 +167,7 @@ bool obscurePassword = true;
                     },
                     child: const Text(
                       "Forgot Password?",
-                      style: TextStyle(
-                        color: Colors.deepPurpleAccent,
-                      ),
+                      style: TextStyle(color: Colors.deepPurpleAccent),
                     ),
                   ),
                 ),
@@ -217,10 +210,7 @@ bool obscurePassword = true;
                     ),
                     label: const Text(
                       "Continue with Google",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.deepPurple),
@@ -237,9 +227,7 @@ bool obscurePassword = true;
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const SignupScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const SignupScreen()),
                     );
                   },
                   child: const Text(

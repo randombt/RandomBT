@@ -81,11 +81,18 @@ class FirestoreService {
   }
 
   /// Get Notifications
-  Stream<QuerySnapshot> getNotifications(String uid) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> getNotifications(String uid) {
     return _firestore
-        .collection("notifications")
-        .where("toUid", isEqualTo: uid)
+        .collection('notifications')
+        .where('toUid', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
         .snapshots();
+  }
+
+  Future<void> markNotificationAsRead(String notificationId) {
+    return _firestore.collection('notifications').doc(notificationId).update({
+      'seen': true,
+    });
   }
 
   /// Upload Post

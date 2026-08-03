@@ -58,7 +58,8 @@ class _SearchScreenState extends State<SearchScreen> {
       ]);
 
       final usersById = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{
-        for (final result in results) for (final user in result.docs) user.id: user,
+        for (final result in results)
+          for (final user in result.docs) user.id: user,
       };
 
       if (!mounted || query != _searchText) return;
@@ -157,10 +158,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     if (_users.isEmpty) {
       return const Center(
-        child: Text(
-          'No users found',
-          style: TextStyle(color: Colors.white70),
-        ),
+        child: Text('No users found', style: TextStyle(color: Colors.white70)),
       );
     }
 
@@ -194,7 +192,9 @@ class _SearchScreenState extends State<SearchScreen> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => UserProfileScreen(uid: user.id)),
+              MaterialPageRoute(
+                builder: (_) => UserProfileScreen(uid: user.id),
+              ),
             );
           },
         );

@@ -23,10 +23,7 @@ class PostModel {
     required this.createdAt,
   });
 
-  factory PostModel.fromMap(
-    Map<String, dynamic> map,
-    String documentId,
-  ) {
+  factory PostModel.fromMap(Map<String, dynamic> map, String documentId) {
     return PostModel(
       id: documentId,
       uid: map["uid"] ?? "",

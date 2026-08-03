@@ -69,26 +69,14 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1800),
     );
 
-    _float = Tween<double>(
-      begin: -6,
-      end: 6,
-    ).animate(
-      CurvedAnimation(
-        parent: _floatController,
-        curve: Curves.easeInOut,
-      ),
+    _float = Tween<double>(begin: -6, end: 6).animate(
+      CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
     );
 
     _floatController.repeat(reverse: true);
 
-    _glow = Tween<double>(
-      begin: 18,
-      end: 40,
-    ).animate(
-      CurvedAnimation(
-        parent: _glowController,
-        curve: Curves.easeInOut,
-      ),
+    _glow = Tween<double>(begin: 18, end: 40).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
 
     _glowController.repeat(reverse: true);
@@ -101,44 +89,32 @@ class _SplashScreenState extends State<SplashScreen>
     _fade = Tween<double>(
       begin: 0,
       end: 1,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeIn,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
     _scale = Tween<double>(
       begin: 0.6,
       end: 1,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutBack,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
 
     _checkLogin();
   }
-Future<void> _checkLogin() async {
-  await Future.delayed(const Duration(milliseconds: 2800));
 
-  final user = FirebaseAuth.instance.currentUser;
+  Future<void> _checkLogin() async {
+    await Future.delayed(const Duration(milliseconds: 2800));
 
-  if (!mounted) return;
+    final user = FirebaseAuth.instance.currentUser;
 
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) =>
-          user != null
-              ? const HomeScreen()
-              : const LoginScreen(),
-    ),
-  );
-}
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => user != null ? const HomeScreen() : const LoginScreen(),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -156,11 +132,7 @@ Future<void> _checkLogin() async {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xff0F1115),
-              Color(0xff1B1F2A),
-              Color(0xff6C63FF),
-            ],
+            colors: [Color(0xff0F1115), Color(0xff1B1F2A), Color(0xff6C63FF)],
           ),
         ),
         child: Center(
@@ -186,7 +158,9 @@ Future<void> _checkLogin() async {
                             color: Colors.white.withValues(alpha: .05),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.deepPurpleAccent.withValues(alpha: .8),
+                                color: Colors.deepPurpleAccent.withValues(
+                                  alpha: .8,
+                                ),
                                 blurRadius: _glow.value,
                                 spreadRadius: 3,
                               ),

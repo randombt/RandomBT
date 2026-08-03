@@ -115,12 +115,21 @@ class FirestoreService {
     });
   }
 
-  /// Get All Posts
-  Stream<QuerySnapshot> getPosts() {
-    return _firestore
+  /// Gets one newest-first page of posts for the Feed.
+  Future<QuerySnapshot<Map<String, dynamic>>> getPostsPage({
+    required int limit,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) {
+    Query<Map<String, dynamic>> query = _firestore
         .collection("posts")
         .orderBy("createdAt", descending: true)
-        .snapshots();
+        .limit(limit);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    return query.get();
   }
 
   /// Get Current User Posts

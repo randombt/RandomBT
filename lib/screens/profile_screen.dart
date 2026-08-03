@@ -28,6 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController nameController = TextEditingController();
 
   final TextEditingController bioController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
 
   final cloudinary = CloudinaryPublic('szyxahsw', 'RandomBT', cache: false);
 
@@ -348,6 +349,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 15),
 
               TextField(
+                controller: usernameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: "Username"),
+              ),
+
+              const SizedBox(height: 15),
+
+              TextField(
                 controller: bioController,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(labelText: "Bio"),
@@ -357,7 +366,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               ElevatedButton(
                 onPressed: () async {
-                  await saveProfile();
+                  try {
+                    await saveProfile();
+                  } on UsernameAlreadyInUseException {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Username is already in use"),
+                      ),
+                    );
+                    return;
+                  } on ArgumentError {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Username is required")),
+                    );
+                    return;
+                  }
 
                   if (!mounted) return;
 
@@ -385,10 +410,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) return;
 
     final updatedProfileUrl = profileUrl ?? '';
-    await firestoreService.updateUserProfile(
+    await firestoreService.updateProfileWithUsername(
       uid: user.uid,
       fullName: nameController.text.trim(),
+      username: usernameController.text,
+      previousUsername: username,
       bio: bioController.text.trim(),
+      profileUrl: updatedProfileUrl,
+    );
+    username = usernameController.text.trim();
+    profileUrl = updatedProfileUrl.isEmpty ? null : updatedProfileUrl;
+    await firestoreService.synchronizeProfileReferences(
+      uid: user.uid,
+      username: username,
       profileUrl: updatedProfileUrl,
     );
     await user.updateDisplayName(nameController.text.trim());
@@ -406,6 +440,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final storedProfileUrl = data['profileUrl']?.toString() ?? '';
     profileUrl = storedProfileUrl.isEmpty ? null : storedProfileUrl;
     username = data['username']?.toString() ?? '';
+    usernameController.text = username;
     nameController.text = data['fullName']?.toString() ?? '';
     bioController.text = data['bio']?.toString() ?? '';
 
@@ -437,6 +472,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     nameController.dispose();
     bioController.dispose();
+    usernameController.dispose();
     super.dispose();
   }
 }

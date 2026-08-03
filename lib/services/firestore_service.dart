@@ -15,6 +15,8 @@ class SavedPostsState {
   final bool hasError;
 }
 
+class UsernameAlreadyInUseException implements Exception {}
+
 class FirestoreService {
   static final Map<String, ValueNotifier<SavedPostsState>> _savedPostsStates =
       {};
@@ -73,6 +75,87 @@ class FirestoreService {
       'bio': bio,
       'profileUrl': profileUrl,
     }, SetOptions(merge: true));
+  }
+
+  Future<void> updateProfileWithUsername({
+    required String uid,
+    required String fullName,
+    required String username,
+    required String previousUsername,
+    required String bio,
+    required String profileUrl,
+  }) async {
+    final normalized = username.trim().toLowerCase();
+    final previousNormalized = previousUsername.trim().toLowerCase();
+    if (normalized.isEmpty) throw ArgumentError('Username is required.');
+    final userRef = userReference(uid);
+    final reservationRef = _firestore.collection('usernames').doc(normalized);
+    final previousReservationRef = _firestore
+        .collection('usernames')
+        .doc(previousNormalized);
+
+    await _firestore.runTransaction((transaction) async {
+      final reservation = await transaction.get(reservationRef);
+      if (reservation.exists && reservation.data()?['uid'] != uid) {
+        throw UsernameAlreadyInUseException();
+      }
+      transaction.set(reservationRef, {
+        'uid': uid,
+        'username': username.trim(),
+        'reservedAt': FieldValue.serverTimestamp(),
+      });
+      if (previousNormalized.isNotEmpty && previousNormalized != normalized) {
+        final previous = await transaction.get(previousReservationRef);
+        if (previous.exists && previous.data()?['uid'] == uid) {
+          transaction.delete(previousReservationRef);
+        }
+      }
+      transaction.set(userRef, {
+        'fullName': fullName.trim(),
+        'username': username.trim(),
+        'usernameLowercase': normalized,
+        'bio': bio.trim(),
+        'profileUrl': profileUrl,
+      }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> synchronizeProfileReferences({
+    required String uid,
+    required String username,
+    required String profileUrl,
+  }) async {
+    final results = await Future.wait([
+      _firestore.collection('posts').where('uid', isEqualTo: uid).get(),
+      _firestore
+          .collection('notifications')
+          .where('fromUid', isEqualTo: uid)
+          .get(),
+      _firestore
+          .collectionGroup('comments')
+          .where('username', isEqualTo: username)
+          .get(),
+    ]);
+    final batch = _firestore.batch();
+    for (final doc in results[0].docs) {
+      batch.update(doc.reference, {
+        'username': username,
+        'profileUrl': profileUrl,
+      });
+    }
+    for (final doc in results[1].docs) {
+      batch.update(doc.reference, {
+        'username': username,
+        'profileUrl': profileUrl,
+      });
+    }
+    for (final doc in results[2].docs) {
+      batch.update(doc.reference, {
+        'username': username,
+        'profileUrl': profileUrl,
+      });
+    }
+    await batch.commit();
   }
 
   /// Create Notification

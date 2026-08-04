@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'saved_posts_screen.dart';
+import 'settings_screen.dart';
 import '../services/firestore_service.dart';
 import 'login_screen.dart';
 
@@ -47,6 +48,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: const Color(0xff0F1115),
         elevation: 0,
         title: const Text("Your Profile"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SettingsScreen(onEditProfile: showEditOptions),
+                ),
+              );
+            },
+          ),
+        ],
       ),
 
       body: SingleChildScrollView(

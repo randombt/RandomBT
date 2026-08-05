@@ -32,6 +32,9 @@ class FirestoreService {
   static final Map<String, DocumentSnapshot<Map<String, dynamic>>> _userCache =
       {};
   static final Map<String, bool> _likeStatusCache = {};
+  static final Map<String, Stream<QuerySnapshot>> _userPostsStreamCache = {};
+  static final Map<String, Stream<QuerySnapshot>> _followersStreamCache = {};
+  static final Map<String, Stream<QuerySnapshot>> _followingStreamCache = {};
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   DocumentReference<Map<String, dynamic>> userReference(String uid) {
@@ -260,11 +263,15 @@ class FirestoreService {
 
   /// Get Current User Posts
   Stream<QuerySnapshot> getUserPosts(String uid) {
-    return _firestore
-        .collection("posts")
-        .where("uid", isEqualTo: uid)
-        .orderBy("createdAt", descending: true)
-        .snapshots();
+    return _userPostsStreamCache.putIfAbsent(
+      uid,
+      () => _firestore
+          .collection("posts")
+          .where("uid", isEqualTo: uid)
+          .orderBy("createdAt", descending: true)
+          .snapshots()
+          .asBroadcastStream(),
+    );
   }
 
   /// Delete Post
@@ -561,18 +568,26 @@ class FirestoreService {
   }
 
   Stream<QuerySnapshot> getFollowers(String uid) {
-    return _firestore
-        .collection("users")
-        .doc(uid)
-        .collection("followers")
-        .snapshots();
+    return _followersStreamCache.putIfAbsent(
+      uid,
+      () => _firestore
+          .collection("users")
+          .doc(uid)
+          .collection("followers")
+          .snapshots()
+          .asBroadcastStream(),
+    );
   }
 
   Stream<QuerySnapshot> getFollowing(String uid) {
-    return _firestore
-        .collection("users")
-        .doc(uid)
-        .collection("following")
-        .snapshots();
+    return _followingStreamCache.putIfAbsent(
+      uid,
+      () => _firestore
+          .collection("users")
+          .doc(uid)
+          .collection("following")
+          .snapshots()
+          .asBroadcastStream(),
+    );
   }
 }

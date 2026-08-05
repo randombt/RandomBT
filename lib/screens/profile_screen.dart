@@ -26,6 +26,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final FirestoreService firestoreService = FirestoreService();
 
+  late final String currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  late final Stream<QuerySnapshot> _userPostsStream = firestoreService.getUserPosts(currentUid);
+  late final Stream<QuerySnapshot> _followersStream = firestoreService.getFollowers(currentUid);
+  late final Stream<QuerySnapshot> _followingStream = firestoreService.getFollowing(currentUid);
+
   final TextEditingController nameController = TextEditingController();
 
   final TextEditingController bioController = TextEditingController();
@@ -106,9 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 StreamBuilder<QuerySnapshot>(
-                  stream: firestoreService.getUserPosts(
-                    FirebaseAuth.instance.currentUser!.uid,
-                  ),
+                  stream: _userPostsStream,
                   builder: (context, snapshot) {
                     int totalPosts = snapshot.hasData
                         ? snapshot.data!.docs.length
@@ -119,9 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
 
                 StreamBuilder<QuerySnapshot>(
-                  stream: firestoreService.getFollowers(
-                    FirebaseAuth.instance.currentUser!.uid,
-                  ),
+                  stream: _followersStream,
                   builder: (context, snapshot) {
                     return _buildStat(
                       "Followers",
@@ -131,9 +132,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
 
                 StreamBuilder<QuerySnapshot>(
-                  stream: firestoreService.getFollowing(
-                    FirebaseAuth.instance.currentUser!.uid,
-                  ),
+                  stream: _followingStream,
                   builder: (context, snapshot) {
                     return _buildStat(
                       "Following",
@@ -181,9 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(color: Colors.white24),
 
             StreamBuilder<QuerySnapshot>(
-              stream: firestoreService.getUserPosts(
-                FirebaseAuth.instance.currentUser!.uid,
-              ),
+              stream: _userPostsStream,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(

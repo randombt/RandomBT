@@ -14,8 +14,10 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final firestoreService = FirestoreService();
-
   final auth = FirebaseAuth.instance;
+
+  late final Stream<QuerySnapshot> _followersStream = firestoreService.getFollowers(widget.uid);
+  late final Stream<QuerySnapshot> _followingStream = firestoreService.getFollowing(widget.uid);
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +78,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   StreamBuilder<QuerySnapshot>(
-                    stream: firestoreService.getFollowers(widget.uid),
+                    stream: _followersStream,
                     builder: (context, snapshot) {
                       return Column(
                         children: [
@@ -98,7 +100,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
 
                   StreamBuilder<QuerySnapshot>(
-                    stream: firestoreService.getFollowing(widget.uid),
+                    stream: _followingStream,
                     builder: (context, snapshot) {
                       return Column(
                         children: [

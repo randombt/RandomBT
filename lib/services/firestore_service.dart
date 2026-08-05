@@ -29,6 +29,10 @@ class FirestoreService {
   _savedPostDocumentCache = {};
   static final Set<String> _missingSavedPostIds = {};
 
+  static final Map<String, DocumentSnapshot<Map<String, dynamic>>> _userCache =
+      {};
+  static final Map<String, bool> _likeStatusCache = {};
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   DocumentReference<Map<String, dynamic>> userReference(String uid) {
     return _firestore.collection('users').doc(uid);
@@ -38,8 +42,18 @@ class FirestoreService {
     return userReference(uid).snapshots();
   }
 
-  Future<DocumentSnapshot<Map<String, dynamic>>> getUserOnce(String uid) {
-    return userReference(uid).get();
+  Future<DocumentSnapshot<Map<String, dynamic>>> getUserOnce(
+    String uid, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _userCache.containsKey(uid)) {
+      return _userCache[uid]!;
+    }
+    final doc = await userReference(uid).get();
+    if (doc.exists) {
+      _userCache[uid] = doc;
+    }
+    return doc;
   }
 
   Future<void> createUser({
@@ -62,6 +76,7 @@ class FirestoreService {
       'profileUrl': profileUrl,
       if (!existingUser.exists) 'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    _userCache.remove(uid);
   }
 
   Future<void> updateUserProfile({
@@ -69,12 +84,13 @@ class FirestoreService {
     required String fullName,
     required String bio,
     required String profileUrl,
-  }) {
-    return userReference(uid).set({
+  }) async {
+    await userReference(uid).set({
       'fullName': fullName,
       'bio': bio,
       'profileUrl': profileUrl,
     }, SetOptions(merge: true));
+    _userCache.remove(uid);
   }
 
   Future<void> updateProfileWithUsername({
@@ -118,6 +134,7 @@ class FirestoreService {
         'profileUrl': profileUrl,
       }, SetOptions(merge: true));
     });
+    _userCache.remove(uid);
   }
 
   Future<void> synchronizeProfileReferences({
@@ -269,6 +286,26 @@ class FirestoreService {
     await _firestore.collection("posts").doc(postId).update({"likes": likes});
   }
 
+  /// Checks whether a post is liked by the current user, utilizing memory cache.
+  Future<bool> isPostLiked({
+    required String postId,
+    required String uid,
+  }) async {
+    final cacheKey = '${postId}_$uid';
+    if (_likeStatusCache.containsKey(cacheKey)) {
+      return _likeStatusCache[cacheKey]!;
+    }
+    final doc = await _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('likes')
+        .doc(uid)
+        .get();
+    final liked = doc.exists;
+    _likeStatusCache[cacheKey] = liked;
+    return liked;
+  }
+
   /// Toggles the current user's like in one transaction. The like document ID
   /// enforces one like per user and keeps the counter in sync with it.
   Future<bool> toggleLike({
@@ -280,7 +317,7 @@ class FirestoreService {
     final postRef = _firestore.collection('posts').doc(postId);
     final likeRef = postRef.collection('likes').doc(uid);
 
-    return _firestore.runTransaction((transaction) async {
+    final liked = await _firestore.runTransaction((transaction) async {
       final post = await transaction.get(postRef);
       if (!post.exists) return false;
 
@@ -318,6 +355,9 @@ class FirestoreService {
       }
       return true;
     });
+
+    _likeStatusCache['${postId}_$uid'] = liked;
+    return liked;
   }
 
   /// Shares one saved-post listener per user for the current app session.
@@ -367,23 +407,29 @@ class FirestoreService {
         )
         .toList();
 
+    final futures = <Future<void>>[];
     for (var start = 0; start < missingIds.length; start += 10) {
       final end = start + 10 > missingIds.length
           ? missingIds.length
           : start + 10;
       final pageIds = missingIds.sublist(start, end);
-      final posts = await _firestore
-          .collection('posts')
-          .where(FieldPath.documentId, whereIn: pageIds)
-          .get();
-      final foundIds = <String>{};
-      for (final post in posts.docs) {
-        _savedPostDocumentCache[post.id] = post;
-        foundIds.add(post.id);
-      }
-      _missingSavedPostIds.addAll(
-        pageIds.where((id) => !foundIds.contains(id)),
-      );
+      futures.add(() async {
+        final posts = await _firestore
+            .collection('posts')
+            .where(FieldPath.documentId, whereIn: pageIds)
+            .get();
+        final foundIds = <String>{};
+        for (final post in posts.docs) {
+          _savedPostDocumentCache[post.id] = post;
+          foundIds.add(post.id);
+        }
+        _missingSavedPostIds.addAll(
+          pageIds.where((id) => !foundIds.contains(id)),
+        );
+      }());
+    }
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
     }
 
     return [for (final id in ids) ?_savedPostDocumentCache[id]];

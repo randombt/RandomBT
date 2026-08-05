@@ -122,6 +122,8 @@ class _SavedPostsScreenState extends State<SavedPostsScreen> {
                     return GridView.builder(
                       padding: const EdgeInsets.all(4),
                       itemCount: posts.length,
+                      addAutomaticKeepAlives: true,
+                      addRepaintBoundaries: true,
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 3,
@@ -132,30 +134,10 @@ class _SavedPostsScreenState extends State<SavedPostsScreen> {
                         final post = posts[index].data()!;
                         final postId = posts[index].id;
 
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => Scaffold(
-                                  backgroundColor: Colors.black,
-                                  appBar: AppBar(backgroundColor: Colors.black),
-                                  body: Center(
-                                    child: InteractiveViewer(
-                                      child: Image.network(post["imageUrl"]),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                          child: Hero(
-                            tag: postId,
-                            child: Image.network(
-                              post["imageUrl"],
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                        return _SavedPostTile(
+                          key: ValueKey(postId),
+                          postId: postId,
+                          imageUrl: post["imageUrl"] ?? "",
                         );
                       },
                     );
@@ -163,6 +145,50 @@ class _SavedPostsScreenState extends State<SavedPostsScreen> {
                 );
               },
             ),
+    );
+  }
+}
+
+class _SavedPostTile extends StatelessWidget {
+  const _SavedPostTile({
+    super.key,
+    required this.postId,
+    required this.imageUrl,
+  });
+
+  final String postId;
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(backgroundColor: Colors.black),
+                body: Center(
+                  child: InteractiveViewer(
+                    child: Image.network(imageUrl),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        child: Hero(
+          tag: postId,
+          child: Image.network(
+            imageUrl,
+            cacheWidth: 300,
+            cacheHeight: 300,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
     );
   }
 }

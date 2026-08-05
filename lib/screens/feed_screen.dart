@@ -16,10 +16,7 @@ final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
 const _feedPageSize = 12;
 
-class _FeedScreenState extends State<FeedScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController heartController;
-  String? animatedPostId;
+class _FeedScreenState extends State<FeedScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> _posts = [];
   final Set<String> _postIds = {};
@@ -29,37 +26,12 @@ class _FeedScreenState extends State<FeedScreen>
   bool _isLoadingMore = false;
   bool _hasReachedEnd = false;
   String? _feedError;
-  bool isLiking = false;
   bool isSaving = false;
   bool isCommenting = false;
-
-  late Animation<double> heartAnimation;
 
   final FirestoreService firestoreService = FirestoreService();
   final TextEditingController commentController = TextEditingController();
   final FirebaseAuth auth = FirebaseAuth.instance;
-
-  Future<void> toggleLike(String postId) async {
-    if (isLiking) return;
-
-    isLiking = true;
-
-    try {
-      final user = auth.currentUser;
-      if (user == null) return;
-      final userData = (await firestoreService.getUserOnce(user.uid)).data();
-      if (userData == null) return;
-      final liked = await firestoreService.toggleLike(
-        postId: postId,
-        uid: user.uid,
-        username: userData['username']?.toString() ?? '',
-        profileUrl: userData['profileUrl']?.toString() ?? '',
-      );
-      _updatePostLikes(postId, liked);
-    } finally {
-      isLiking = false;
-    }
-  }
 
   Future<void> toggleSave(String postId) async {
     if (isSaving) return;
@@ -225,16 +197,6 @@ class _FeedScreenState extends State<FeedScreen>
   @override
   void initState() {
     super.initState();
-
-    heartController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-
-    heartAnimation = Tween<double>(begin: 0.5, end: 1.2).animate(
-      CurvedAnimation(parent: heartController, curve: Curves.elasticOut),
-    );
-
     _scrollController.addListener(_onScroll);
     _loadInitialPosts();
   }
@@ -328,23 +290,8 @@ class _FeedScreenState extends State<FeedScreen>
     }
   }
 
-  void _updatePostLikes(String postId, bool liked) {
-    final postIndex = _posts.indexWhere((post) => post.id == postId);
-    if (postIndex == -1) return;
-
-    final post = _posts[postIndex];
-    final data = post.data();
-    final likes = (data['likes'] as num?)?.toInt() ?? 0;
-    data['likes'] = liked ? likes + 1 : (likes > 0 ? likes - 1 : 0);
-
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   @override
   void dispose() {
-    heartController.dispose();
     _scrollController.dispose();
     commentController.dispose();
     super.dispose();
@@ -469,208 +416,16 @@ class _FeedScreenState extends State<FeedScreen>
                       final doc = posts[index];
                       final post = doc.data();
                       final postId = doc.id;
+                      final currentUid = auth.currentUser?.uid ?? '';
 
-                      return Card(
-                        color: const Color(0xff1B1E24),
-                        margin: const EdgeInsets.all(10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => UserProfileScreen(
-                                            uid: post["uid"],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: CircleAvatar(
-                                      backgroundImage:
-                                          (post["profileUrl"] ?? "").isNotEmpty
-                                          ? NetworkImage(post["profileUrl"])
-                                          : null,
-                                      child: (post["profileUrl"] ?? "").isEmpty
-                                          ? const Icon(Icons.person)
-                                          : null,
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 10),
-
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => UserProfileScreen(
-                                            uid: post["uid"],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: Text(
-                                      post["username"] ?? "",
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-
-                              GestureDetector(
-                                onDoubleTap: () async {
-                                  heartController.forward(from: 0);
-                                  setState(() {
-                                    animatedPostId = postId;
-                                  });
-
-                                  await toggleLike(postId);
-
-                                  await Future.delayed(
-                                    const Duration(milliseconds: 700),
-                                  );
-
-                                  if (!mounted) return;
-
-                                  setState(() {
-                                    animatedPostId = null;
-                                  });
-                                },
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Image.network(
-                                        post["imageUrl"],
-                                        height: 220,
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-
-                                    if (animatedPostId == postId)
-                                      ScaleTransition(
-                                        scale: heartAnimation,
-                                        child: const Icon(
-                                          Icons.favorite,
-                                          color: Colors.red,
-                                          size: 100,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  StreamBuilder<DocumentSnapshot>(
-                                    stream: firestore
-                                        .collection("posts")
-                                        .doc(postId)
-                                        .collection("likes")
-                                        .doc(auth.currentUser!.uid)
-                                        .snapshots(),
-                                    builder: (context, snapshot) {
-                                      final liked =
-                                          snapshot.data?.exists ?? false;
-
-                                      return IconButton(
-                                        onPressed: () {
-                                          toggleLike(postId);
-                                        },
-                                        icon: Icon(
-                                          liked
-                                              ? Icons.favorite
-                                              : Icons.favorite_border,
-                                          color: liked
-                                              ? Colors.red
-                                              : Colors.white,
-                                        ),
-                                      );
-                                    },
-                                  ),
-
-                                  Text(
-                                    "${post["likes"]} Likes",
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-
-                                  const Spacer(),
-
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.comment_outlined,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () {
-                                      showComments(postId);
-                                    },
-                                  ),
-
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.send_outlined,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () {
-                                      SharePlus.instance.share(
-                                        ShareParams(
-                                          text:
-                                              "${post["caption"]}\n\n${post["imageUrl"]}",
-                                        ),
-                                      );
-                                    },
-                                  ),
-
-                                  ValueListenableBuilder<SavedPostsState>(
-                                    valueListenable: firestoreService
-                                        .watchSavedPosts(auth.currentUser!.uid),
-                                    builder: (context, savedPosts, child) {
-                                      final saved = savedPosts.postIds.contains(
-                                        postId,
-                                      );
-
-                                      return IconButton(
-                                        onPressed: () {
-                                          toggleSave(postId);
-                                        },
-                                        icon: Icon(
-                                          saved
-                                              ? Icons.bookmark
-                                              : Icons.bookmark_border,
-                                          color: Colors.white,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 5),
-
-                              Text(
-                                post["caption"] ?? "",
-                                style: const TextStyle(color: Colors.white70),
-                              ),
-                            ],
-                          ),
-                        ),
+                      return _FeedPostCard(
+                        key: ValueKey(postId),
+                        postId: postId,
+                        post: post,
+                        currentUid: currentUid,
+                        firestoreService: firestoreService,
+                        onCommentPressed: () => showComments(postId),
+                        onToggleSave: toggleSave,
                       );
                     },
                   );
@@ -679,6 +434,300 @@ class _FeedScreenState extends State<FeedScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FeedPostCard extends StatefulWidget {
+  const _FeedPostCard({
+    super.key,
+    required this.postId,
+    required this.post,
+    required this.currentUid,
+    required this.firestoreService,
+    required this.onCommentPressed,
+    required this.onToggleSave,
+  });
+
+  final String postId;
+  final Map<String, dynamic> post;
+  final String currentUid;
+  final FirestoreService firestoreService;
+  final VoidCallback onCommentPressed;
+  final ValueChanged<String> onToggleSave;
+
+  @override
+  State<_FeedPostCard> createState() => _FeedPostCardState();
+}
+
+class _FeedPostCardState extends State<_FeedPostCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _heartController;
+  late Animation<double> _heartAnimation;
+  bool _showHeartAnimation = false;
+  bool _isLiked = false;
+  late int _likesCount;
+  bool _isLiking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _likesCount = (widget.post["likes"] as num?)?.toInt() ?? 0;
+
+    _heartController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _heartAnimation = Tween<double>(begin: 0.5, end: 1.2).animate(
+      CurvedAnimation(parent: _heartController, curve: Curves.elasticOut),
+    );
+
+    _checkInitialLikeStatus();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FeedPostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.post["likes"] != widget.post["likes"]) {
+      _likesCount = (widget.post["likes"] as num?)?.toInt() ?? 0;
+    }
+  }
+
+  Future<void> _checkInitialLikeStatus() async {
+    if (widget.currentUid.isEmpty) return;
+    final liked = await widget.firestoreService.isPostLiked(
+      postId: widget.postId,
+      uid: widget.currentUid,
+    );
+    if (mounted) {
+      setState(() {
+        _isLiked = liked;
+      });
+    }
+  }
+
+  Future<void> _handleToggleLike() async {
+    if (_isLiking || widget.currentUid.isEmpty) return;
+    _isLiking = true;
+
+    final previousLiked = _isLiked;
+    final previousLikesCount = _likesCount;
+    setState(() {
+      _isLiked = !previousLiked;
+      _likesCount = _isLiked
+          ? previousLikesCount + 1
+          : (previousLikesCount > 0 ? previousLikesCount - 1 : 0);
+    });
+
+    try {
+      final userData =
+          (await widget.firestoreService.getUserOnce(widget.currentUid)).data();
+      if (userData == null) return;
+
+      final liked = await widget.firestoreService.toggleLike(
+        postId: widget.postId,
+        uid: widget.currentUid,
+        username: userData['username']?.toString() ?? '',
+        profileUrl: userData['profileUrl']?.toString() ?? '',
+      );
+
+      if (mounted) {
+        setState(() {
+          _isLiked = liked;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLiked = previousLiked;
+          _likesCount = previousLikesCount;
+        });
+      }
+    } finally {
+      _isLiking = false;
+    }
+  }
+
+  Future<void> _handleDoubleTap() async {
+    _heartController.forward(from: 0);
+    if (mounted) {
+      setState(() {
+        _showHeartAnimation = true;
+      });
+    }
+
+    await _handleToggleLike();
+
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (mounted) {
+      setState(() {
+        _showHeartAnimation = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _heartController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final post = widget.post;
+    final postId = widget.postId;
+
+    return RepaintBoundary(
+      child: Card(
+        color: const Color(0xff1B1E24),
+        margin: const EdgeInsets.all(10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UserProfileScreen(
+                            uid: post["uid"],
+                          ),
+                        ),
+                      );
+                    },
+                    child: CircleAvatar(
+                      backgroundImage:
+                          (post["profileUrl"] ?? "").toString().isNotEmpty
+                              ? NetworkImage(post["profileUrl"])
+                              : null,
+                      child: (post["profileUrl"] ?? "").toString().isEmpty
+                          ? const Icon(Icons.person)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UserProfileScreen(
+                            uid: post["uid"],
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      post["username"] ?? "",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onDoubleTap: _handleDoubleTap,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        post["imageUrl"] ?? "",
+                        height: 220,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        cacheWidth: 800,
+                      ),
+                    ),
+                    if (_showHeartAnimation)
+                      ScaleTransition(
+                        scale: _heartAnimation,
+                        child: const Icon(
+                          Icons.favorite,
+                          color: Colors.red,
+                          size: 100,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _handleToggleLike,
+                    icon: Icon(
+                      _isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: _isLiked ? Colors.red : Colors.white,
+                    ),
+                  ),
+                  Text(
+                    "$_likesCount Likes",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.comment_outlined,
+                      color: Colors.white,
+                    ),
+                    onPressed: widget.onCommentPressed,
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.send_outlined,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      SharePlus.instance.share(
+                        ShareParams(
+                          text:
+                              "${post["caption"]}\n\n${post["imageUrl"]}",
+                        ),
+                      );
+                    },
+                  ),
+                  if (widget.currentUid.isNotEmpty)
+                    ValueListenableBuilder<SavedPostsState>(
+                      valueListenable: widget.firestoreService
+                          .watchSavedPosts(widget.currentUid),
+                      builder: (context, savedPosts, child) {
+                        final saved = savedPosts.postIds.contains(postId);
+
+                        return IconButton(
+                          onPressed: () => widget.onToggleSave(postId),
+                          icon: Icon(
+                            saved ? Icons.bookmark : Icons.bookmark_border,
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                post["caption"] ?? "",
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

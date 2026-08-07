@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import 'home_screen.dart';
+import '../services/firestore_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -54,7 +55,54 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = userCredential.user;
+      if (user != null) {
+        final firestoreService = FirestoreService();
+        final doc = await firestoreService.getUserOnce(user.uid);
+        if (!doc.exists || (doc.data()?['username'] ?? '').toString().isEmpty) {
+          final email = user.email ?? '';
+          final rawSource = email.isNotEmpty ? email.split('@')[0] : (user.displayName ?? 'user');
+          final cleanSource = rawSource.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '').toLowerCase();
+          final baseUsername = cleanSource.isNotEmpty ? cleanSource : 'user_${user.uid.substring(0, 6)}';
+          try {
+            await firestoreService.createUser(
+              uid: user.uid,
+              email: email,
+              username: baseUsername,
+              fullName: user.displayName ?? 'User',
+              phone: user.phoneNumber ?? '',
+              profileUrl: user.photoURL ?? '',
+            );
+            await firestoreService.updateProfileWithUsername(
+              uid: user.uid,
+              fullName: user.displayName ?? 'User',
+              username: baseUsername,
+              previousUsername: '',
+              bio: '',
+              profileUrl: user.photoURL ?? '',
+            );
+          } catch (_) {
+            final uniqueUsername = '${baseUsername}_${user.uid.substring(0, 4)}';
+            await firestoreService.createUser(
+              uid: user.uid,
+              email: email,
+              username: uniqueUsername,
+              fullName: user.displayName ?? 'User',
+              phone: user.phoneNumber ?? '',
+              profileUrl: user.photoURL ?? '',
+            );
+            await firestoreService.updateProfileWithUsername(
+              uid: user.uid,
+              fullName: user.displayName ?? 'User',
+              username: uniqueUsername,
+              previousUsername: '',
+              bio: '',
+              profileUrl: user.photoURL ?? '',
+            );
+          }
+        }
+      }
 
       if (!mounted) return;
 

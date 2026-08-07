@@ -114,33 +114,50 @@ class FirestoreService {
         .doc(previousNormalized);
 
     await _firestore.runTransaction((transaction) async {
-      final reservation = await transaction.get(reservationRef);
-      if (reservation.exists && reservation.data()?['uid'] != uid) {
-        throw UsernameAlreadyInUseException();
-      }
-      transaction.set(reservationRef, {
-        'uid': uid,
-        'username': username.trim(),
-        'reservedAt': FieldValue.serverTimestamp(),
-      });
-      if (previousNormalized.isNotEmpty && previousNormalized != normalized) {
-        final previous = await transaction.get(previousReservationRef);
-        if (previous.exists && previous.data()?['uid'] == uid) {
-          transaction.delete(previousReservationRef);
-        }
-      }
-      transaction.set(userRef, {
-        'fullName': fullName.trim(),
-        'username': username.trim(),
-        'usernameLowercase': normalized,
-        'bio': bio.trim(),
-        'profileUrl': profileUrl,
-      }, SetOptions(merge: true));
-    });
-    _userCache.remove(uid);
+
+  final reservation = await transaction.get(reservationRef);
+
+  DocumentSnapshot<Map<String, dynamic>>? previous;
+
+  if (previousNormalized.isNotEmpty &&
+      previousNormalized != normalized) {
+    previous = await transaction.get(previousReservationRef);
   }
 
-  Future<void> synchronizeProfileReferences({
+  if (reservation.exists &&
+      reservation.data()?['uid'] != uid) {
+    throw UsernameAlreadyInUseException();
+  }
+
+  transaction.set(
+    reservationRef,
+    {
+      'uid': uid,
+      'username': username.trim(),
+      'reservedAt': FieldValue.serverTimestamp(),
+    },
+  );
+
+  if (previous != null &&
+      previous.exists &&
+      previous.data()?['uid'] == uid) {
+    transaction.delete(previousReservationRef);
+  }
+
+  transaction.set(
+    userRef,
+    {
+      'fullName': fullName.trim(),
+      'username': username.trim(),
+      'usernameLowercase': normalized,
+      'bio': bio.trim(),
+      'profileUrl': profileUrl,
+    },
+    SetOptions(merge: true),
+  );
+ });
+}
+ Future<void> synchronizeProfileReferences({
     required String uid,
     required String username,
     required String profileUrl,

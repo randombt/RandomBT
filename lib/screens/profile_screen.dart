@@ -257,6 +257,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       profileUrl = response.secureUrl;
 
       await saveProfile();
+      
+      
 
       if (!mounted) return;
 
@@ -340,6 +342,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> editProfileDialog() async {
+    await loadProfile();
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) {
@@ -377,39 +381,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
 
               ElevatedButton(
-                onPressed: () async {
-                  try {
-                    await saveProfile();
-                  } on UsernameAlreadyInUseException {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Username is already in use"),
-                      ),
-                    );
-                    return;
-                  } on ArgumentError {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Username is required")),
-                    );
-                    return;
-                  }
+  onPressed: () async {
+    try {
+      await saveProfile();
 
-                  if (!mounted) return;
+      if (!mounted) return;
 
-                  setState(() {});
+      setState(() {});
 
-                  if (!context.mounted) return;
+     if (context.mounted && Navigator.canPop(context)) {
+  Navigator.pop(context);
+}
 
-                  Navigator.pop(context);
+      if (!context.mounted) return;
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Profile Updated")),
-                  );
-                },
-                child: const Text("Save"),
-              ),
+ScaffoldMessenger.of(context).showSnackBar(
+  const SnackBar(content: Text("Profile Updated")),
+);
+    } on UsernameAlreadyInUseException {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Username is already in use")),
+      );
+    } on ArgumentError {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Username is required")),
+      );
+    }
+  },
+  child: const Text("Save"),
+),
             ],
           ),
         );
@@ -417,35 +421,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> saveProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+ Future<void> saveProfile() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
 
-    final updatedProfileUrl = profileUrl ?? '';
+  final updatedProfileUrl = profileUrl ?? '';
+
+  try {
     await firestoreService.updateProfileWithUsername(
       uid: user.uid,
       fullName: nameController.text.trim(),
-      username: usernameController.text,
+      username: usernameController.text.trim(),
       previousUsername: username,
       bio: bioController.text.trim(),
       profileUrl: updatedProfileUrl,
     );
+
+    print("✅ PROFILE UPDATED SUCCESS");
+
     username = usernameController.text.trim();
+
     profileUrl = updatedProfileUrl.isEmpty ? null : updatedProfileUrl;
+
     await firestoreService.synchronizeProfileReferences(
       uid: user.uid,
       username: username,
       profileUrl: updatedProfileUrl,
     );
+
     await user.updateDisplayName(nameController.text.trim());
     await user.updatePhotoURL(updatedProfileUrl);
-  }
+    
+    await loadProfile();
+    
+
+
+if (mounted) {
+  setState(() {});
+}
+  } 
+  catch (e) {
+  debugPrint("❌ PROFILE UPDATE ERROR: $e");
+  rethrow;
+}
+}
 
   Future<void> loadProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    final snapshot = await firestoreService.getUserOnce(user.uid);
+final snapshot = await firestoreService.getUserOnce(
+  user.uid,
+  forceRefresh: true,
+);
+    
     final data = snapshot.data();
     if (data == null) return;
 

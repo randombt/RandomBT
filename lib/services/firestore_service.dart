@@ -293,16 +293,33 @@ class FirestoreService {
 
   /// Delete Post
   Future<void> deletePost(String postId) async {
-    final savedPosts = await _firestore
-        .collectionGroup('savedPosts')
-        .where(FieldPath.documentId, isEqualTo: postId)
-        .get();
-    final batch = _firestore.batch();
-    for (final savedPost in savedPosts.docs) {
-      batch.delete(savedPost.reference);
+    const pageSize = 499;
+    final postRef = _firestore.collection('posts').doc(postId);
+
+    QueryDocumentSnapshot<Map<String, dynamic>>? lastUser;
+    while (true) {
+      Query<Map<String, dynamic>> query = _firestore
+          .collection('users')
+          .orderBy(FieldPath.documentId)
+          .limit(pageSize);
+      if (lastUser != null) {
+        query = query.startAfterDocument(lastUser);
+      }
+
+      final users = await query.get();
+      if (users.docs.isEmpty) break;
+
+      final batch = _firestore.batch();
+      for (final user in users.docs) {
+        batch.delete(user.reference.collection('savedPosts').doc(postId));
+      }
+      await batch.commit();
+
+      if (users.docs.length < pageSize) break;
+      lastUser = users.docs.last;
     }
-    batch.delete(_firestore.collection("posts").doc(postId));
-    await batch.commit();
+
+    await postRef.delete();
   }
 
   /// Update Likes

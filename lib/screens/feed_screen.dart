@@ -290,6 +290,13 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
+  void _removePostFromFeed(String postId) {
+    setState(() {
+      _posts.removeWhere((doc) => doc.id == postId);
+      _postIds.remove(postId);
+    });
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -426,6 +433,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         firestoreService: firestoreService,
                         onCommentPressed: () => showComments(postId),
                         onToggleSave: toggleSave,
+                        onPostDeleted: _removePostFromFeed,
                       );
                     },
                   );
@@ -448,6 +456,7 @@ class _FeedPostCard extends StatefulWidget {
     required this.firestoreService,
     required this.onCommentPressed,
     required this.onToggleSave,
+    required this.onPostDeleted,
   });
 
   final String postId;
@@ -456,6 +465,7 @@ class _FeedPostCard extends StatefulWidget {
   final FirestoreService firestoreService;
   final VoidCallback onCommentPressed;
   final ValueChanged<String> onToggleSave;
+  final ValueChanged<String> onPostDeleted;
 
   @override
   State<_FeedPostCard> createState() => _FeedPostCardState();
@@ -568,6 +578,52 @@ class _FeedPostCardState extends State<_FeedPostCard>
     }
   }
 
+  Future<void> _confirmDeletePost() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xff1B1F2A),
+        title: const Text(
+          'Delete Post?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'This action cannot be undone.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await widget.firestoreService.deletePost(widget.postId);
+      if (!mounted) return;
+      widget.onPostDeleted(widget.postId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post deleted successfully.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to delete post. Please try again.')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _heartController.dispose();
@@ -634,6 +690,27 @@ class _FeedPostCardState extends State<_FeedPostCard>
                       ),
                     ),
                   ),
+                  const Spacer(),
+                  if (widget.currentUid.isNotEmpty &&
+                      post["uid"]?.toString() == widget.currentUid)
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      color: const Color(0xff1B1E24),
+                      onSelected: (value) {
+                        if (value == 'delete') {
+                          _confirmDeletePost();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text(
+                            'Delete Post',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
               const SizedBox(height: 12),

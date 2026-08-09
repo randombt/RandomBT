@@ -640,4 +640,38 @@ class FirestoreService {
         .collection("following")
         .snapshots();
   }
+
+  /// Upload Story
+  Future<void> uploadStory({
+    required String uid,
+    required String username,
+    required String profileUrl,
+    required String mediaUrl,
+    required String mediaType,
+    required String filterName,
+  }) async {
+    final now = DateTime.now();
+    final expiresAt = now.add(const Duration(hours: 24));
+    await _firestore.collection("stories").add({
+      "uid": uid,
+      "username": username,
+      "profileUrl": profileUrl,
+      "mediaUrl": mediaUrl,
+      "mediaType": mediaType,
+      "filterName": filterName,
+      "createdAt": Timestamp.fromDate(now),
+      "expiresAt": Timestamp.fromDate(expiresAt),
+    });
+  }
+
+  /// Get Active Stories Stream
+  Stream<QuerySnapshot<Map<String, dynamic>>> getActiveStoriesStream() {
+    final now = DateTime.now();
+    return _firestore
+        .collection("stories")
+        .where("expiresAt", isGreaterThan: Timestamp.fromDate(now))
+        .orderBy("expiresAt")
+        .orderBy("createdAt", descending: true)
+        .snapshots();
+  }
 }

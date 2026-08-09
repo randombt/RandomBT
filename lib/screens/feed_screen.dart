@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../services/firestore_service.dart';
+import '../models/story_model.dart';
 import 'user_profile_screen.dart';
 import 'chat_list_screen.dart';
 import 'notifications_screen.dart';
+import 'story_editor_screen.dart';
+import 'story_viewer_screen.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -39,6 +44,23 @@ class _FeedScreenState extends State<FeedScreen> {
   final FirestoreService firestoreService = FirestoreService();
   final TextEditingController commentController = TextEditingController();
   final FirebaseAuth auth = FirebaseAuth.instance;
+
+  Future<void> _pickAndCreateStory() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => StoryEditorScreen(
+            mediaFile: File(image.path),
+            mediaType: 'image',
+          ),
+        ),
+      );
+    }
+  }
 
   Future<void> toggleSave(String postId) async {
     if (isSaving) return;
@@ -432,44 +454,170 @@ class _FeedScreenState extends State<FeedScreen> {
         children: [
           SizedBox(
             height: 100,
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: firestoreService.getActiveStoriesStream(),
+              builder: (context, snapshot) {
+                final currentUserId = auth.currentUser?.uid;
+                
+                List<StoryModel> allStories = [];
+                if (snapshot.hasData) {
+                  allStories = snapshot.data!.docs
+                      .map((doc) => StoryModel.fromMap(doc.id, doc.data()))
+                      .toList();
+                }
 
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: 10,
+                // Group by uid
+                final Map<String, List<StoryModel>> storiesByUser = {};
+                for (final story in allStories) {
+                  storiesByUser.putIfAbsent(story.uid, () => []).add(story);
+                }
 
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.all(8),
+                final List<StoryModel> currentUserStories = currentUserId != null ? storiesByUser[currentUserId] ?? [] : [];
+                final otherUserEntries = storiesByUser.entries.where((e) => e.key != currentUserId).toList();
 
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor:
-                            Colors.deepPurple,
+                return ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    // Your Story / Add Story
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: GestureDetector(
+                        onTap: () {
+                          if (currentUserStories.isNotEmpty) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => StoryViewerScreen(
+                                  stories: currentUserStories,
+                                ),
+                              ),
+                            );
+                          } else {
+                            _pickAndCreateStory();
+                          }
+                        },
+                        child: Column(
+                          children: [
+                            Stack(
+                              children: [
+                                Container(
+                                  width: 62,
+                                  height: 62,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: currentUserStories.isNotEmpty
+                                        ? const LinearGradient(
+                                            colors: [Colors.purple, Colors.orange, Colors.red],
+                                            begin: Alignment.topRight,
+                                            end: Alignment.bottomLeft,
+                                          )
+                                        : null,
+                                    border: currentUserStories.isEmpty
+                                        ? Border.all(color: Colors.grey, width: 2)
+                                        : null,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(3),
+                                    child: CircleAvatar(
+                                      radius: 28,
+                                      backgroundColor: Colors.grey[800],
+                                      backgroundImage: currentUserStories.isNotEmpty && currentUserStories.first.profileUrl.isNotEmpty
+                                          ? NetworkImage(currentUserStories.first.profileUrl)
+                                          : null,
+                                      child: currentUserStories.isEmpty || currentUserStories.first.profileUrl.isEmpty
+                                          ? const Icon(Icons.person, color: Colors.white, size: 30)
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                                if (currentUserStories.isEmpty)
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.blue,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.add, color: Colors.white, size: 14),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 5),
+                            const Text(
+                              "Your Story",
+                              style: TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
-                        child: Text(
-                          "${index + 1}",
-                          style: const TextStyle(
-                            color: Colors.white,
+                    // Other users' stories
+                    ...otherUserEntries.map((entry) {
+                      final userStories = entry.value;
+                      final firstStory = userStories.first;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => StoryViewerScreen(
+                                  stories: userStories,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 62,
+                                height: 62,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    colors: [Colors.purple, Colors.orange, Colors.red],
+                                    begin: Alignment.topRight,
+                                    end: Alignment.bottomLeft,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(3),
+                                  child: CircleAvatar(
+                                    radius: 28,
+                                    backgroundColor: Colors.grey[800],
+                                    backgroundImage: firstStory.profileUrl.isNotEmpty
+                                        ? NetworkImage(firstStory.profileUrl)
+                                        : null,
+                                    child: firstStory.profileUrl.isEmpty
+                                        ? const Icon(Icons.person, color: Colors.white, size: 30)
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              SizedBox(
+                                width: 64,
+                                child: Text(
+                                  firstStory.username,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 5),
-
-                      Text(
-                        index == 0
-                            ? "Your Story"
-                            : "User $index",
-
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
+                      );
+                    }),
+                  ],
                 );
               },
             ),

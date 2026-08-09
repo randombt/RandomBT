@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
+import '../services/chat_service.dart';
+import 'chat_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String uid;
@@ -135,25 +137,66 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   builder: (context, snapshot) {
                     final following = snapshot.data?.exists ?? false;
 
-                    return ElevatedButton(
-                      onPressed: () async {
-                        final currentUser = auth.currentUser;
-                        if (currentUser == null) return;
-                        final currentUserData =
-                            (await firestoreService.getUserOnce(
-                              currentUser.uid,
-                            )).data();
-                        if (currentUserData == null) return;
-                        await firestoreService.followUser(
-                          currentUid: currentUser.uid,
-                          targetUid: widget.uid,
-                          username:
-                              currentUserData['username']?.toString() ?? '',
-                          profileUrl:
-                              currentUserData['profileUrl']?.toString() ?? '',
-                        );
-                      },
-                      child: Text(following ? "Following" : "Follow"),
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () async {
+                            final currentUser = auth.currentUser;
+                            if (currentUser == null) return;
+                            final currentUserData =
+                                (await firestoreService.getUserOnce(
+                                  currentUser.uid,
+                                )).data();
+                            if (currentUserData == null) return;
+                            await firestoreService.followUser(
+                              currentUid: currentUser.uid,
+                              targetUid: widget.uid,
+                              username:
+                                  currentUserData['username']?.toString() ?? '',
+                              profileUrl:
+                                  currentUserData['profileUrl']?.toString() ?? '',
+                            );
+                          },
+                          child: Text(following ? "Following" : "Follow"),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final currentUser = auth.currentUser;
+                            if (currentUser == null) return;
+                            final currentUserData =
+                                (await firestoreService.getUserOnce(currentUser.uid)).data();
+                            final targetUserData =
+                                (await firestoreService.getUserOnce(widget.uid)).data();
+                            if (currentUserData == null || targetUserData == null) return;
+
+                            final chatService = ChatService();
+                            final chatId = await chatService.createOrGetChat(
+                              currentUid: currentUser.uid,
+                              currentUsername: currentUserData['username']?.toString() ?? '',
+                              currentProfileUrl: currentUserData['profileUrl']?.toString() ?? '',
+                              targetUid: widget.uid,
+                              targetUsername: targetUserData['username']?.toString() ?? '',
+                              targetProfileUrl: targetUserData['profileUrl']?.toString() ?? '',
+                            );
+
+                            if (!context.mounted) return;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  chatId: chatId,
+                                  targetUid: widget.uid,
+                                  targetUsername: targetUserData['username']?.toString() ?? '',
+                                  targetProfileUrl: targetUserData['profileUrl']?.toString() ?? '',
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text("Message"),
+                        ),
+                      ],
                     );
                   },
                 ),

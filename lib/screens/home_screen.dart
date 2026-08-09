@@ -4,7 +4,7 @@ import 'feed_screen.dart';
 import 'profile_screen.dart';
 import 'create_post_screen.dart';
 import 'search_screen.dart';
-import 'notifications_screen.dart';
+import 'masala_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     ),
 
-    NotificationsScreen(),
+    const MasalaScreen(),
 
     const ProfileScreen(),
   ];
@@ -64,9 +64,9 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.add_box), label: "Upload"),
 
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_outlined),
-            activeIcon: Icon(Icons.notifications),
-            label: "Alerts",
+            icon: Icon(Icons.video_library_outlined),
+            activeIcon: Icon(Icons.video_library),
+            label: "Masala",
           ),
 
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),

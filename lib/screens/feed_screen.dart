@@ -134,28 +134,20 @@ class _FeedScreenState extends State<FeedScreen> {
                       itemBuilder: (context, index) {
                         final data =
                             comments[index].data() as Map<String, dynamic>;
+                        final commentId = comments[index].id;
+                        final rawLikes = data["likes"];
+                        final List<String> commentLikes = rawLikes is List
+                            ? rawLikes.map((e) => e.toString()).toList()
+                            : [];
 
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage:
-                                (data["profileUrl"] ?? "").toString().isNotEmpty
-                                ? NetworkImage(data["profileUrl"].toString())
-                                : null,
-                            child: (data["profileUrl"] ?? "").toString().isEmpty
-                                ? const Icon(Icons.person)
-                                : null,
-                          ),
-                          title: Text(
-                            data["username"] ?? "",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            data["comment"] ?? "",
-                            style: const TextStyle(color: Colors.white70),
-                          ),
+                        return _CommentTile(
+                          postId: postId,
+                          commentId: commentId,
+                          username: data["username"] ?? "",
+                          profileUrl: data["profileUrl"] ?? "",
+                          commentText: data["comment"] ?? "",
+                          initialLikes: commentLikes,
+                          firestoreService: firestoreService,
                         );
                       },
                     );

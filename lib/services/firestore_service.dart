@@ -533,6 +533,7 @@ class FirestoreService {
         "username": username,
         "profileUrl": profileUrl,
         "comment": comment,
+        "likes": [],
         "createdAt": FieldValue.serverTimestamp(),
       });
       final comments = (post.data()?['comments'] as num?)?.toInt() ?? 0;
@@ -549,6 +550,36 @@ class FirestoreService {
         .collection("comments")
         .orderBy("createdAt")
         .snapshots();
+  }
+
+  Future<void> likeComment({
+    required String postId,
+    required String commentId,
+    required String userId,
+  }) async {
+    await _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .doc(commentId)
+        .update({
+      'likes': FieldValue.arrayUnion([userId]),
+    });
+  }
+
+  Future<void> unlikeComment({
+    required String postId,
+    required String commentId,
+    required String userId,
+  }) async {
+    await _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .doc(commentId)
+        .update({
+      'likes': FieldValue.arrayRemove([userId]),
+    });
   }
 
   Future<bool> followUser({

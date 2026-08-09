@@ -1185,6 +1185,131 @@ class _FeedPostCardState
                     ),
                   ),
 
+                  if (widget.currentUid
+                          .isNotEmpty &&
+                      post["uid"]
+                              ?.toString() !=
+                          widget.currentUid)
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore
+                          .instance
+                          .collection("users")
+                          .doc(
+                              widget.currentUid)
+                          .collection("following")
+                          .doc(
+                              post["uid"]
+                                      ?.toString() ??
+                                  '')
+                          .snapshots(),
+                      builder: (context,
+                          snapshot) {
+                        final isFollowing =
+                            snapshot.data
+                                    ?.exists ??
+                                false;
+                        return Padding(
+                          padding:
+                              const EdgeInsets
+                                  .only(
+                                  left: 8),
+                          child: SizedBox(
+                            height: 28,
+                            child: TextButton(
+                              style: TextButton
+                                  .styleFrom(
+                                padding:
+                                    const EdgeInsets
+                                        .symmetric(
+                                  horizontal: 10,
+                                  vertical: 0,
+                                ),
+                                backgroundColor:
+                                    isFollowing
+                                        ? Colors
+                                            .transparent
+                                        : Colors
+                                            .blue,
+                                side: isFollowing
+                                    ? const BorderSide(
+                                        color: Colors
+                                            .white24,
+                                      )
+                                    : BorderSide
+                                        .none,
+                                shape:
+                                    RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius
+                                          .circular(
+                                              6),
+                                ),
+                              ),
+                              onPressed:
+                                  () async {
+                                final user =
+                                    FirebaseAuth
+                                        .instance
+                                        .currentUser;
+                                if (user ==
+                                    null) {
+                                  return;
+                                }
+                                final userSnapshot =
+                                    await widget
+                                        .firestoreService
+                                        .getUserOnce(
+                                  user.uid,
+                                );
+                                final userData =
+                                    userSnapshot
+                                        .data();
+                                if (userData ==
+                                    null) {
+                                  return;
+                                }
+
+                                await widget
+                                    .firestoreService
+                                    .followUser(
+                                  currentUid:
+                                      user.uid,
+                                  targetUid: post[
+                                          "uid"]
+                                      .toString(),
+                                  username: userData[
+                                              'username']
+                                          ?.toString() ??
+                                      '',
+                                  profileUrl: userData[
+                                              'profileUrl']
+                                          ?.toString() ??
+                                      '',
+                                );
+                              },
+                              child: Text(
+                                isFollowing
+                                    ? "Following"
+                                    : "Follow",
+                                style:
+                                    TextStyle(
+                                  color: isFollowing
+                                      ? Colors
+                                          .white70
+                                      : Colors
+                                          .white,
+                                  fontSize: 12,
+                                  fontWeight:
+                                      FontWeight
+                                          .w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
                   const Spacer(),
 
                   if (widget.currentUid
@@ -1251,18 +1376,26 @@ class _FeedPostCardState
                       ),
 
                       child:
-                          Image.network(
-                        post["imageUrl"] ??
-                            "",
-
-                        height: 220,
-
+                          Container(
+                        constraints:
+                            const BoxConstraints(
+                          maxHeight: 450,
+                          minHeight: 200,
+                        ),
                         width:
                             double.infinity,
+                        child:
+                            Image.network(
+                          post["imageUrl"] ??
+                              "",
 
-                        fit: BoxFit.cover,
+                          width:
+                              double.infinity,
 
-                        cacheWidth: 800,
+                          fit: BoxFit.contain,
+
+                          cacheWidth: 800,
+                        ),
                       ),
                     ),
 

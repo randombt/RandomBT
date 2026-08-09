@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/cloudinary_service.dart';
 import '../services/firestore_service.dart';
@@ -28,9 +29,27 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
 
     if (image != null) {
-      setState(() {
-        selectedImage = File(image.path);
-      });
+      final CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: image.path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Image',
+            toolbarColor: const Color(0xff0F1115),
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.original,
+            lockAspectRatio: false,
+          ),
+          IOSUiSettings(
+            title: 'Crop Image',
+          ),
+        ],
+      );
+
+      if (croppedFile != null) {
+        setState(() {
+          selectedImage = File(croppedFile.path);
+        });
+      }
     }
   }
 
@@ -124,7 +143,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 onPressed: _isUploading
                     ? null
                     : () async {
-                        if (selectedImage == null || _isUploading) return;
+                        if (_isUploading) return;
+
+                        if (selectedImage == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Please select an image first"),
+                            ),
+                          );
+                          return;
+                        }
 
                         final user = auth.currentUser;
                         if (user == null) {
@@ -170,7 +198,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           if (imageUrl == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text("Image upload failed"),
+                                content: Text(
+                                  "Image upload failed. Please check your connection.",
+                                ),
                               ),
                             );
                             return;
@@ -189,18 +219,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text("Post Uploaded Successfully"),
+                              content: Text("Post uploaded successfully!"),
                             ),
                           );
-                          widget.onPostUploaded();
+
                           setState(() {
                             selectedImage = null;
                             captionController.clear();
                           });
-                        } catch (_) {
+
+                          widget.onPostUploaded();
+                        } catch (e) {
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Post upload failed")),
+                            SnackBar(
+                              content: Text("Failed to create post: $e"),
+                            ),
                           );
                         } finally {
                           if (mounted) {

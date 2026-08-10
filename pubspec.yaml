@@ -41,12 +41,14 @@ dependencies:
   google_sign_in: ^6.2.1
   shared_preferences: ^2.5.3
   image_picker: ^1.2.0
+  image_cropper: ^8.0.3
   cloudinary_public: ^0.23.1
 
   share_plus: ^13.0.0
   url_launcher: ^6.3.1
 
   uuid: ^4.5.1
+  just_audio: ^0.9.36
 dev_dependencies:
   flutter_test:
     sdk: flutter

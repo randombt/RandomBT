@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import '../models/story_model.dart';
 
 class StoryViewerScreen extends StatefulWidget {
@@ -19,11 +20,13 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     with SingleTickerProviderStateMixin {
   late int _currentIndex;
   late AnimationController _animController;
+  late final AudioPlayer _audioPlayer;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _audioPlayer = AudioPlayer();
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -35,22 +38,41 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       }
     });
 
+    _playCurrentStoryAudio();
     _animController.forward();
   }
 
   @override
   void dispose() {
+    _audioPlayer.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  Future<void> _playCurrentStoryAudio() async {
+    try {
+      await _audioPlayer.stop();
+      if (_currentIndex >= 0 && _currentIndex < widget.stories.length) {
+        final story = widget.stories[_currentIndex];
+        if (story.audioUrl != null && story.audioUrl!.isNotEmpty) {
+          await _audioPlayer.setUrl(story.audioUrl!);
+          await _audioPlayer.play();
+        }
+      }
+    } catch (e) {
+      // Ignore audio playback failure gracefully
+    }
   }
 
   void _nextStory() {
     if (_currentIndex < widget.stories.length - 1) {
       setState(() {
         _currentIndex++;
+        _playCurrentStoryAudio();
         _animController.forward(from: 0.0);
       });
     } else {
+      _audioPlayer.stop();
       Navigator.pop(context);
     }
   }
@@ -59,6 +81,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     if (_currentIndex > 0) {
       setState(() {
         _currentIndex--;
+        _playCurrentStoryAudio();
         _animController.forward(from: 0.0);
       });
     } else {
@@ -143,8 +166,14 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
             _nextStory();
           }
         },
-        onLongPressStart: (_) => _animController.stop(),
-        onLongPressEnd: (_) => _animController.forward(),
+        onLongPressStart: (_) {
+          _animController.stop();
+          _audioPlayer.pause();
+        },
+        onLongPressEnd: (_) {
+          _animController.forward();
+          _audioPlayer.play();
+        },
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -179,6 +208,32 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       },
                     ),
             ),
+
+            // Music Badge Overlay
+            if (story.musicTitle != null && story.musicTitle!.isNotEmpty)
+              Positioned(
+                bottom: 40,
+                left: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.music_note, color: Colors.white, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        "${story.musicTitle} • ${story.artistName ?? 'Unknown'}",
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // Top Progress Bars and User Info
             SafeArea(

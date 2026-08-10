@@ -649,6 +649,12 @@ class FirestoreService {
     required String mediaUrl,
     required String mediaType,
     required String filterName,
+    String? musicId,
+    String? musicTitle,
+    String? artistName,
+    String? audioUrl,
+    int? startTime,
+    int? duration,
   }) async {
     final now = DateTime.now();
     final expiresAt = now.add(const Duration(hours: 24));
@@ -659,6 +665,12 @@ class FirestoreService {
       "mediaUrl": mediaUrl,
       "mediaType": mediaType,
       "filterName": filterName,
+      "musicId": musicId,
+      "musicTitle": musicTitle,
+      "artistName": artistName,
+      "audioUrl": audioUrl,
+      "startTime": startTime,
+      "duration": duration,
       "createdAt": Timestamp.fromDate(now),
       "expiresAt": Timestamp.fromDate(expiresAt),
     });
